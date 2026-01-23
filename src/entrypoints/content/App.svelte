@@ -36,6 +36,20 @@
 
   let theme = $state("dark");
 
+  // URL Tracking
+  let currentUrl = $state(window.location.href);
+
+  $effect(() => {
+    const interval = setInterval(() => {
+      if (window.location.href !== currentUrl) {
+        currentUrl = window.location.href;
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  });
+
+  const curr_study_id = $derived(new URL(currentUrl).pathname);
+
   // ContentUI open state
   let open = $state(false);
 
@@ -114,23 +128,6 @@
   async function startup() {
     local_last_accessed_book = await last_accessed_book.getValue();
     local_last_accessed_study = await last_accessed_study.getValue();
-
-    const current_last_accessed_book = local_last_accessed_book[current_study_id()];
-
-    if (!current_last_accessed_book) return;
-
-    const { book_id, page } = current_last_accessed_book;
-
-    const book = await get_book(book_id);
-
-    if (!book) return;
-
-    selected_book = book;
-
-    // set the page number
-    if (page) {
-      pageInput = page;
-    }
   }
 
   // sync data
@@ -141,11 +138,32 @@
     }
   }, 3000);
 
+  // Load book associated with current study
   $effect(() => {
-    const curr_study_id = current_study_id();
-    const res = local_last_accessed_book[curr_study_id];
-    if (!selected_book || !res || !open) return;
-    res.page = pageInput;
+    const data = local_last_accessed_book[curr_study_id];
+    if (data && (!selected_book || selected_book.id !== data.book_id)) {
+      get_book(data.book_id).then((book) => {
+        if (book) {
+          selected_book = book;
+          pageInput = data.page || 1;
+        }
+      });
+    }
+  });
+
+  $effect(() => {
+    if (!selected_book) return;
+    local_last_accessed_study[selected_book.id] = curr_study_id;
+
+    if (!local_last_accessed_book[curr_study_id]) {
+      local_last_accessed_book[curr_study_id] = {
+        book_id: selected_book.id,
+        page: pageInput,
+      };
+    } else {
+      local_last_accessed_book[curr_study_id].book_id = selected_book.id;
+      local_last_accessed_book[curr_study_id].page = pageInput;
+    }
   });
 
   onDestroy(() => {
@@ -158,7 +176,7 @@
 {#if open}
   <div
     bind:this={el}
-    class="pointer-events-none absolute inset-y-18 left-0 z-50 w-full"
+    class="pointer-events-none absolute inset-y-18 left-0 z-50 min-h-[90vh] w-full"
     transition:fly={{ x: -100, duration: 400, easing: quintOut }}
   >
     <Resizable.PaneGroup autoSaveId={"bookUILength"} direction="horizontal">
@@ -197,13 +215,7 @@
                     const curr_book = await get_book(book.id);
                     if (!curr_book) return;
                     selected_book = curr_book;
-                    let curr_study_id = current_study_id();
                     pageInput = 1;
-                    local_last_accessed_book[curr_study_id] = {
-                      book_id: selected_book.id,
-                      page: pageInput,
-                    };
-                    local_last_accessed_study[book.id] = curr_study_id;
                     isBookList = false;
                   }}
                   animate:flip={{ duration: 500 }}
@@ -214,7 +226,7 @@
 
               {#if loading}
                 {#each Array(5) as _}
-                  <Skeleton class="rouned-lg aspect-[1/1.414] max-w-[300px]" />
+                  <Skeleton class="rouned-lg aspect-[1/1.414] max-w-75" />
                 {/each}
               {/if}
             </div>

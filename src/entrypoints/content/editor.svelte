@@ -8,13 +8,19 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area/index";
 
   // --- PROPS ---
-  export let content = ``;
+  interface Props {
+    content?: string;
+    onUpdate?: (content: any) => void;
+    onChessMove?: (move: string) => void;
+  }
 
-  export let onUpdate = (content: any) => {};
-
-  export let onChessMove: ((move: string) => void) | undefined = (move) => {
-    console.log("Move clicked:", move);
-  };
+  let {
+    content = ``,
+    onUpdate = () => {},
+    onChessMove = (move) => {
+      console.log("Move clicked:", move);
+    },
+  }: Props = $props();
 
   function wrapLinesInParagraphs(text: string) {
     return text
@@ -24,20 +30,35 @@
       .join("\n");
   }
 
-  try {
-    content = JSON.parse(content);
-  } catch (_) {
-    content = wrapLinesInParagraphs(content);
-  }
+  const initialContent = (() => {
+    try {
+      return JSON.parse(content);
+    } catch (_) {
+      return wrapLinesInParagraphs(content);
+    }
+  })();
 
-  let element: HTMLElement;
-  let bubbleMenuElement: HTMLElement;
-  let editor: Editor | undefined;
-  let isEditing = false;
+  let element = $state<HTMLElement>();
+  let bubbleMenuElement = $state<HTMLElement>();
+  let editor = $state.raw<Editor | undefined>();
+  let isEditing = $state(false);
+  let updateTick = $state(0);
 
-  $: if (editor) {
-    editor.setEditable(isEditing);
-  }
+  const checkActive = (name: string, attrs?: any) => {
+    updateTick;
+    return editor?.isActive(name, attrs) ?? false;
+  };
+
+  const isSelectionEmpty = () => {
+    updateTick;
+    return editor?.state.selection.empty ?? true;
+  };
+
+  $effect(() => {
+    if (editor) {
+      editor.setEditable(isEditing);
+    }
+  });
 
   // --- HELPER: Execute commands even in Read-Only mode ---
   const runAction = (callback: () => void) => {
@@ -193,15 +214,14 @@
           },
         }),
       ],
-      content: content,
+      content: initialContent,
       parseOptions: { preserveWhitespace: "full" },
       onUpdate: () => {
-        let content: any = editor?.getJSON();
-        content = JSON.stringify(content);
-        onUpdate(content);
+        let contentJson: any = editor?.getJSON();
+        onUpdate(JSON.stringify(contentJson));
       },
       onTransaction: () => {
-        editor = editor;
+        updateTick++;
       },
       editorProps: {
         handleClick(view, pos, event) {
@@ -317,46 +337,46 @@
   <!-- BUBBLE MENU -->
   <div
     bind:this={bubbleMenuElement}
-    class="bubble-menu {editor?.view.state.selection.empty
+    class="bubble-menu {isSelectionEmpty()
       ? 'hidden'
       : ''} border-border bg-popover text-popover-foreground flex items-center gap-1 rounded-md border p-1 shadow-md"
   >
     {#if editor}
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleBold().run())}
-        class="btn-bubble {editor.isActive('bold') ? 'is-active' : ''}">B</button
+        class="btn-bubble {checkActive('bold') ? 'is-active' : ''}">B</button
       >
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleItalic().run())}
-        class="btn-bubble italic {editor.isActive('italic') ? 'is-active' : ''}">I</button
+        class="btn-bubble italic {checkActive('italic') ? 'is-active' : ''}">I</button
       >
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleUnderline().run())}
-        class="btn-bubble underline {editor.isActive('underline') ? 'is-active' : ''}">U</button
+        class="btn-bubble underline {checkActive('underline') ? 'is-active' : ''}">U</button
       >
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleStrike().run())}
-        class="btn-bubble line-through {editor.isActive('strike') ? 'is-active' : ''}">S</button
+        class="btn-bubble line-through {checkActive('strike') ? 'is-active' : ''}">S</button
       >
       <div class="divider mx-1 h-4"></div>
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleHeading({ level: 1 }).run())}
-        class="btn-bubble {editor.isActive('heading', { level: 1 }) ? 'is-active' : ''}">H1</button
+        class="btn-bubble {checkActive('heading', { level: 1 }) ? 'is-active' : ''}">H1</button
       >
       <div class="divider mx-1 h-4"></div>
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleHeading({ level: 2 }).run())}
-        class="btn-bubble {editor.isActive('heading', { level: 2 }) ? 'is-active' : ''}">H2</button
+        class="btn-bubble {checkActive('heading', { level: 2 }) ? 'is-active' : ''}">H2</button
       >
       <div class="divider mx-1 h-4"></div>
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleHeading({ level: 3 }).run())}
-        class="btn-bubble {editor.isActive('heading', { level: 3 }) ? 'is-active' : ''}">H3</button
+        class="btn-bubble {checkActive('heading', { level: 3 }) ? 'is-active' : ''}">H3</button
       >
       <div class="divider mx-1 h-4"></div>
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleMark("chessMove").run())}
-        class="btn-bubble {editor.isActive('chessMove') ? 'is-active' : ''}"
+        class="btn-bubble {checkActive('chessMove') ? 'is-active' : ''}"
       >
         <span class="font-mono text-[10px] font-bold">Move</span>
       </button>
@@ -373,34 +393,34 @@
       >
         <button
           onclick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-          class="btn-tool {editor.isActive('heading', { level: 1 }) ? 'is-active' : ''}">H1</button
+          class="btn-tool {checkActive('heading', { level: 1 }) ? 'is-active' : ''}">H1</button
         >
         <button
           onclick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-          class="btn-tool {editor.isActive('heading', { level: 2 }) ? 'is-active' : ''}">H2</button
+          class="btn-tool {checkActive('heading', { level: 2 }) ? 'is-active' : ''}">H2</button
         >
         <button
           onclick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
-          class="btn-tool {editor.isActive('heading', { level: 3 }) ? 'is-active' : ''}">H3</button
+          class="btn-tool {checkActive('heading', { level: 3 }) ? 'is-active' : ''}">H3</button
         >
         <div class="divider"></div>
         <button
           onclick={() => editor?.chain().focus().toggleBold().run()}
-          class="btn-tool font-bold {editor.isActive('bold') ? 'is-active' : ''}">B</button
+          class="btn-tool font-bold {checkActive('bold') ? 'is-active' : ''}">B</button
         >
         <button
           onclick={() => editor?.chain().focus().toggleItalic().run()}
-          class="btn-tool italic {editor.isActive('italic') ? 'is-active' : ''}">I</button
+          class="btn-tool italic {checkActive('italic') ? 'is-active' : ''}">I</button
         >
         <button
           onclick={() => editor?.chain().focus().toggleStrike().run()}
-          class="btn-tool line-through {editor.isActive('strike') ? 'is-active' : ''}">S</button
+          class="btn-tool line-through {checkActive('strike') ? 'is-active' : ''}">S</button
         >
         <div class="divider"></div>
         <button
           title="toggle bulletlist"
           onclick={() => editor?.chain().focus().toggleBulletList().run()}
-          class="btn-tool {editor.isActive('bulletList') ? 'is-active' : ''}"
+          class="btn-tool {checkActive('bulletList') ? 'is-active' : ''}"
         >
           <svg
             class="h-4 w-4"
@@ -421,7 +441,7 @@
         <button
           title="toggle orderedList"
           onclick={() => editor?.chain().focus().toggleOrderedList().run()}
-          class="btn-tool {editor.isActive('orderedList') ? 'is-active' : ''}"
+          class="btn-tool {checkActive('orderedList') ? 'is-active' : ''}"
         >
           <svg
             class="h-4 w-4"
@@ -438,7 +458,7 @@
         <button
           title="toggle blockquote"
           onclick={() => editor?.chain().focus().toggleBlockquote().run()}
-          class="btn-tool {editor.isActive('blockquote') ? 'is-active' : ''}"
+          class="btn-tool {checkActive('blockquote') ? 'is-active' : ''}"
         >
           <svg
             class="h-4 w-4"
