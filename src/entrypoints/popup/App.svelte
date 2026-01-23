@@ -73,9 +73,6 @@
         >
           <div class="flex-1 overflow-hidden">
             <h3 class="truncate text-sm font-medium">{book.title}</h3>
-            <p class="text-muted-foreground text-[10px] tracking-wider uppercase">
-              {book.study_id ? "Resume" : "In Library"}
-            </p>
           </div>
           <div class="text-muted-foreground transition-transform group-hover:translate-x-1">
             <svg

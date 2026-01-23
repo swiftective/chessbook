@@ -293,13 +293,15 @@
               </div>
             </div>
             {#key pageInput}
+              {@const capturedPage = pageInput}
+              {@const capturedBookId = selected_book?.id}
               <Editor
                 {onChessMove}
-                content={selected_book?.pages[pageInput - 1]}
+                content={selected_book?.pages[capturedPage - 1]}
                 onUpdate={debounce((contents) => {
-                  if (selected_book) {
-                    selected_book.pages[pageInput - 1] = contents;
-                    update_page(selected_book.id, pageInput, contents);
+                  if (selected_book && selected_book.id === capturedBookId) {
+                    selected_book.pages[capturedPage - 1] = contents;
+                    update_page(selected_book.id, capturedPage, contents);
                   }
                 }, 100)}
               />

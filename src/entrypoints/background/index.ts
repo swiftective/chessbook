@@ -73,18 +73,18 @@ async function update_page(
   },
   on_complete: OnComplete,
 ) {
-  const books = await db.books.where("id").equals(message.data.book_id).toArray();
-  const book = books[0];
-
-  const pages = book.pages;
-
-  pages[message.data.pg_num - 1] = message.data.contents;
-
-  db.books.update(message.data.book_id, {
-    pages,
-  });
-
-  on_complete({ data: "item was updated" });
+  try {
+    await db.books
+      .where("id")
+      .equals(message.data.book_id)
+      .modify((book) => {
+        book.pages[message.data.pg_num - 1] = message.data.contents;
+      });
+    on_complete({ data: "item was updated" });
+  } catch (e) {
+    console.error("Failed to update page", e);
+    on_complete({ error: "Failed to update page" });
+  }
 }
 
 export default defineBackground({
