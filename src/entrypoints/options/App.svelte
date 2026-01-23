@@ -10,8 +10,8 @@
   import BookCard from "../../components/book-card.svelte";
   import { flip } from "svelte/animate";
 
-  import { get_books, add_book, delete_book } from "../../utils/crud";
-  import { last_accessed_study } from "../../utils/storage";
+  import { get_books, add_book, delete_book, update_recent_books } from "../../utils/crud";
+  import { last_accessed_study, recent_book_ids } from "../../utils/storage";
 
   import LogoImg from "/icon/128.png";
 
@@ -113,6 +113,8 @@
           const res = await last_accessed_study.getValue();
           const study_id = res[book.id];
           if (!study_id) return;
+
+          update_recent_books(book.id);
 
           let url = "https://lichess.org" + study_id;
           window.open(url, "_blank");

@@ -1,5 +1,12 @@
 import { browser } from "#imports";
 import { Book } from "./db";
+import { recent_book_ids } from "./storage";
+
+async function update_recent_books(book_id: number) {
+  const ids = await recent_book_ids.getValue();
+  const filtered = ids.filter((id) => id !== book_id).slice(0, 9);
+  await recent_book_ids.setValue([book_id, ...filtered]);
+}
 
 async function get_book(id: number, coverImage?: boolean) {
   const message = await browser.runtime.sendMessage({
@@ -41,4 +48,4 @@ async function update_page(book_id: number, pg_num: number, contents: string) {
   });
 }
 
-export { get_books, get_book, add_book, delete_book, update_page };
+export { get_books, get_book, add_book, delete_book, update_page, update_recent_books };

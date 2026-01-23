@@ -5,7 +5,14 @@
   import { onDestroy } from "svelte";
   import { get_book } from "../utils/crud";
 
-  let { title, coverImage, id, onDelete } = $props();
+  interface Props {
+    title: string;
+    coverImage: any;
+    id: number;
+    onDelete?: () => void;
+  }
+
+  let { title, coverImage, id, onDelete }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   const coverImageUrl = getUrl(coverImage);

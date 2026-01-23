@@ -1,3 +1,4 @@
+// @ts-nocheck
 export default defineUnlistedScript(() => {
   window.addEventListener("message", (event) => {
     // Safety check: only listen to messages from your own extension

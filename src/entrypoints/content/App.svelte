@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import * as Resizable from "$lib/components/ui/resizable/index";
   import Editor from "./editor.svelte";
 
@@ -6,7 +6,7 @@
   import { flip } from "svelte/animate";
   import { quintOut } from "svelte/easing";
 
-  import { get_books, get_book, update_page } from "../../utils/crud";
+  import { get_books, get_book, update_page, update_recent_books } from "../../utils/crud";
 
   import { Chess } from "chess.js";
 
@@ -23,18 +23,25 @@
   import CancelIcon from "@lucide/svelte/icons/x";
   import RefreshIcon from "@lucide/svelte/icons/rotate-ccw";
 
-  import { last_accessed_study, last_accessed_book } from "../../utils/storage";
+  import { type Book } from "../../utils/db";
+  import {
+    type LastAccessBook,
+    type LastAccessStudy,
+    last_accessed_study,
+    last_accessed_book,
+    recent_book_ids,
+  } from "../../utils/storage";
 
   import { Button } from "$lib/components/ui/button/index";
   import BookCard from "../../components/book-card.svelte";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { clamp, debounce } from "../../utils/utils";
-  import { onDestroy } from "svelte";
+  import { onDestroy, untrack } from "svelte";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index";
 
-  let el = $state(null);
+  let el = $state<HTMLElement | null>(null);
 
-  let theme = $state("dark");
+  let theme = $state<"dark" | "light">("dark");
 
   // URL Tracking
   let currentUrl = $state(window.location.href);
@@ -53,32 +60,30 @@
   // ContentUI open state
   let open = $state(false);
 
-  /** @type {Omit<import('../../utils/db').Book, 'coverImage'>} **/
-  let selected_book = $state();
+  let selected_book = $state<Omit<Book, "coverImage"> | undefined>();
   let pageInput = $state(1);
 
-  /** @type {import('../../utils/storage').LastAccessBook } **/
-  let local_last_accessed_book = $state({});
-  /** @type {import('../../utils/storage').LastAccessStudy } **/
-  let local_last_accessed_study = $state({});
+  let local_last_accessed_book = $state<LastAccessBook>({});
+  let local_last_accessed_study = $state<LastAccessStudy>({});
 
   // BookList State
-  let books = $state([]);
+  let books = $state<Omit<Book, "pages">[]>([]);
   let isBookList = $state(false);
   let loading = $state(false);
   let refreshSpin = $state(false);
 
   function toggleMode() {
+    if (!el || !el.parentElement) return;
     if (theme == "dark") {
-      el.parentNode.classList.remove("dark");
+      el.parentElement.classList.remove("dark");
       theme = "light";
     } else {
-      el.parentNode.classList.add("dark");
+      el.parentElement.classList.add("dark");
       theme = "dark";
     }
   }
 
-  function firstChessNotation(text) {
+  function firstChessNotation(text: string) {
     const regex = /\b([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](=[QRBN])?|O-O(-O)?)\b/;
     const match = text.match(regex);
     return match ? match[0] : null;
@@ -105,11 +110,15 @@
     loading = false;
   }
 
-  function onChessMove(bookMove) {
+  function onChessMove(bookMove: string) {
     try {
-      const fen = document.querySelector("[data-fen]").getAttribute("data-fen");
+      const fen_el = document.querySelector("[data-fen]");
+      const fen = fen_el?.getAttribute("data-fen");
+      if (!fen) return;
       const chess = new Chess(fen);
-      let move = chess.move(firstChessNotation(bookMove));
+      const notation = firstChessNotation(bookMove);
+      if (!notation) return;
+      let move = chess.move(notation);
 
       document.dispatchEvent(
         new CustomEvent("UI_COMMAND", {
@@ -117,12 +126,6 @@
         }),
       );
     } catch (_) {}
-  }
-
-  function current_study_id() {
-    const url = new URL(window.location.href);
-    const study_id = url.pathname;
-    return study_id;
   }
 
   async function startup() {
@@ -141,11 +144,14 @@
   // Load book associated with current study
   $effect(() => {
     const data = local_last_accessed_book[curr_study_id];
-    if (data && (!selected_book || selected_book.id !== data.book_id)) {
+    const current_book = untrack(() => selected_book);
+
+    if (data && (!current_book || current_book.id !== data.book_id)) {
       get_book(data.book_id).then((book) => {
         if (book) {
           selected_book = book;
           pageInput = data.page || 1;
+          update_recent_books(book.id);
         }
       });
     }
@@ -214,9 +220,17 @@
 
                     const curr_book = await get_book(book.id);
                     if (!curr_book) return;
+
+                    local_last_accessed_book[curr_study_id] = {
+                      book_id: curr_book.id,
+                      page: 1,
+                    };
+                    local_last_accessed_study[curr_book.id] = curr_study_id;
+
                     selected_book = curr_book;
                     pageInput = 1;
                     isBookList = false;
+                    update_recent_books(book.id);
                   }}
                   animate:flip={{ duration: 500 }}
                 >
@@ -235,11 +249,11 @@
           <div class="p-6">
             <div class="mb-6 flex w-full items-center justify-between">
               <div class="flex items-center gap-4">
-                <h2 class="max-w-60 truncate font-bold">{selected_book.title}</h2>
+                <h2 class="max-w-60 truncate font-bold">{selected_book?.title}</h2>
                 <input
                   type="number"
                   min={1}
-                  max={selected_book.pages.length}
+                  max={selected_book?.pages.length}
                   class="bg-secondary max-w-15 appearance-none rounded-sm text-center"
                   bind:value={pageInput}
                 />
@@ -281,10 +295,12 @@
             {#key pageInput}
               <Editor
                 {onChessMove}
-                content={selected_book.pages[pageInput - 1]}
+                content={selected_book?.pages[pageInput - 1]}
                 onUpdate={debounce((contents) => {
-                  selected_book.pages[pageInput - 1] = contents;
-                  update_page(selected_book.id, pageInput, contents);
+                  if (selected_book) {
+                    selected_book.pages[pageInput - 1] = contents;
+                    update_page(selected_book.id, pageInput, contents);
+                  }
                 }, 100)}
               />
             {/key}
@@ -294,13 +310,15 @@
             <Button
               class="px-4"
               variant="outline"
-              onclick={() => (pageInput = clamp(pageInput - 1, 1, selected_book.pages.length))}
+              onclick={() =>
+                (pageInput = clamp(pageInput - 1, 1, selected_book?.pages.length ?? 1))}
               ><ChevronLeftIcon />Prev</Button
             >
             <Button
               class="px-4"
               variant="outline"
-              onclick={() => (pageInput = clamp(pageInput + 1, 1, selected_book.pages.length))}
+              onclick={() =>
+                (pageInput = clamp(pageInput + 1, 1, selected_book?.pages.length ?? 1))}
               >Next<ChevronRightIcon /></Button
             >
           </div>

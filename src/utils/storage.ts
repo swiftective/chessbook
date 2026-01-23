@@ -12,13 +12,18 @@ export type LastAccessStudy = {
 };
 
 // from study
-const last_accessed_book = storage.defineItem<LastAccessBook>("local:last-accessed-book", {
+export const last_accessed_book = storage.defineItem<LastAccessBook>("local:last-accessed-book", {
   fallback: {},
 });
 
 // from book
-const last_accessed_study = storage.defineItem<LastAccessStudy>("local:last-accessed-study", {
-  fallback: {},
-});
+export const last_accessed_study = storage.defineItem<LastAccessStudy>(
+  "local:last-accessed-study",
+  {
+    fallback: {},
+  },
+);
 
-export { last_accessed_book, last_accessed_study };
+export const recent_book_ids = storage.defineItem<number[]>("local:recent-book-ids", {
+  fallback: [],
+});
