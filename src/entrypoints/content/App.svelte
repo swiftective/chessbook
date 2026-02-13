@@ -436,7 +436,7 @@
           <ScrollArea class="min-h-0 flex-1 relative" bind:viewportRef={viewport}>
             <div class="p-6">
               {#key pageInput}
-                {@const capturedPage = pageInput}
+                {@const capturedPage = clamp(pageInput, 1, selected_book?.pages.length ?? 1)}
                 {@const capturedBookId = selected_book?.id}
                 <Editor
                   {onChessMove}
@@ -444,8 +444,11 @@
                   content={selected_book?.pages[capturedPage - 1]}
                   onUpdate={debounce((contents) => {
                     if (selected_book && selected_book.id === capturedBookId) {
-                      selected_book.pages[capturedPage - 1] = contents;
-                      update_page(selected_book.id, capturedPage, contents);
+                      const finalIndex = capturedPage - 1;
+                      if (finalIndex >= 0 && finalIndex < selected_book.pages.length) {
+                        selected_book.pages[finalIndex] = contents;
+                        update_page(selected_book.id, capturedPage, contents);
+                      }
                     }
                   }, 100)}
                 />
@@ -478,20 +481,26 @@
             </Button>
             <div class="flex items-center gap-2">
               <div class="relative flex items-center">
-                <input
-                  type="number"
-                  min={1}
-                  max={selected_book?.pages.length}
-                  class="bg-muted focus:bg-background focus:ring-primary w-14 rounded-full border-none py-1.5 text-center text-sm font-bold focus:ring-2 focus:outline-none"
-                  bind:value={pageInput}
-                  onkeydown={(e) => {
-                    if (e.key === "Enter") {
+                {#key pageInput}
+                  <input
+                    type="number"
+                    min={1}
+                    max={selected_book?.pages.length}
+                    class="bg-muted focus:bg-background focus:ring-primary w-14 rounded-full border-none py-1.5 text-center text-sm font-bold focus:ring-2 focus:outline-none"
+                    value={pageInput}
+                    onkeydown={(e) => {
+                      if (e.key === "Enter") {
+                        const val = parseInt((e.target as HTMLInputElement).value);
+                        pageInput = clamp(val, 1, selected_book?.pages.length ?? 1);
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    onblur={(e) => {
                       const val = parseInt((e.target as HTMLInputElement).value);
                       pageInput = clamp(val, 1, selected_book?.pages.length ?? 1);
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                />
+                    }}
+                  />
+                {/key}
               </div>
             </div>
             <Button
