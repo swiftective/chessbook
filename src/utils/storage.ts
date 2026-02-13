@@ -27,3 +27,7 @@ export const last_accessed_study = storage.defineItem<LastAccessStudy>(
 export const recent_book_ids = storage.defineItem<number[]>("local:recent-book-ids", {
   fallback: [],
 });
+
+export const sidebar_width = storage.defineItem<number>("local:sidebar-width", {
+  fallback: 400,
+});

@@ -1,8 +1,7 @@
 <script lang="ts">
-  import * as Resizable from "$lib/components/ui/resizable/index";
   import Editor from "./editor.svelte";
 
-  import { fly } from "svelte/transition";
+  import { fly, fade } from "svelte/transition";
   import { flip } from "svelte/animate";
   import { quintOut } from "svelte/easing";
 
@@ -22,6 +21,8 @@
 
   import CancelIcon from "@lucide/svelte/icons/x";
   import RefreshIcon from "@lucide/svelte/icons/rotate-ccw";
+  import Edit3Icon from "@lucide/svelte/icons/edit-3";
+  import CheckIcon from "@lucide/svelte/icons/check";
 
   import { type Book } from "../../utils/db";
   import {
@@ -29,7 +30,7 @@
     type LastAccessStudy,
     last_accessed_study,
     last_accessed_book,
-    recent_book_ids,
+    sidebar_width,
   } from "../../utils/storage";
 
   import { Button } from "$lib/components/ui/button/index";
@@ -39,7 +40,40 @@
   import { onDestroy, untrack } from "svelte";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index";
 
+  let sidebarWidth = $state(400);
+  let isResizing = $state(false);
   let el = $state<HTMLElement | null>(null);
+
+  function startResizing(e: MouseEvent) {
+    isResizing = true;
+    e.preventDefault();
+  }
+
+  function stopResizing() {
+    isResizing = false;
+    sidebar_width.setValue(sidebarWidth);
+  }
+
+  function handleMouseMove(e: MouseEvent) {
+    if (!isResizing) return;
+    // The sidebar starts at left:0, so its width is just the mouse's X position
+    const newWidth = Math.max(300, Math.min(window.innerWidth * 0.6, e.clientX));
+    sidebarWidth = newWidth;
+  }
+
+  $effect(() => {
+    if (isResizing) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", stopResizing);
+    } else {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopResizing);
+    }
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopResizing);
+    };
+  });
 
   let theme = $state<"dark" | "light">("dark");
 
@@ -59,6 +93,7 @@
 
   // ContentUI open state
   let open = $state(false);
+  let isEditing = $state(false);
 
   let selected_book = $state<Omit<Book, "coverImage"> | undefined>();
   let pageInput = $state(1);
@@ -70,7 +105,69 @@
   let books = $state<Omit<Book, "pages">[]>([]);
   let isBookList = $state(false);
   let loading = $state(false);
-  let refreshSpin = $state(false);
+
+  let reachedBottom = $state(false);
+  let scrollSentinel = $state<HTMLElement | null>(null);
+  let isScrollable = $state(false);
+  let viewport = $state<HTMLElement | null>(null);
+  let isActivelyScrollingAtBottom = $state(false);
+  let scrollStopTimer: ReturnType<typeof setTimeout>;
+
+  $effect(() => {
+    if (!scrollSentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        reachedBottom = entry.isIntersecting;
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(scrollSentinel);
+    return () => observer.disconnect();
+  });
+
+  function handleActiveScroll(e: WheelEvent | TouchEvent) {
+    if (!reachedBottom || !isScrollable) return;
+
+    // Check if scrolling down
+    let isScrollingDown = false;
+    if (e instanceof WheelEvent) {
+      isScrollingDown = e.deltaY > 0;
+    } else if (e instanceof TouchEvent) {
+      // Simplistic touch check (could be improved with touchstart tracking)
+      isScrollingDown = true; 
+    }
+
+    if (isScrollingDown) {
+      isActivelyScrollingAtBottom = true;
+      clearTimeout(scrollStopTimer);
+      scrollStopTimer = setTimeout(() => {
+        isActivelyScrollingAtBottom = false;
+      }, 150); // Hide quickly after scroll stops
+    }
+  }
+
+  $effect(() => {
+    if (!viewport) return;
+    viewport.addEventListener("wheel", handleActiveScroll, { passive: true });
+    viewport.addEventListener("touchmove", handleActiveScroll, { passive: true });
+    return () => {
+      viewport?.removeEventListener("wheel", handleActiveScroll);
+      viewport?.removeEventListener("touchmove", handleActiveScroll);
+    };
+  });
+
+  $effect(() => {
+    if (!viewport) return;
+    const checkScrollable = () => {
+      isScrollable = viewport!.scrollHeight > viewport!.clientHeight + 10;
+    };
+    checkScrollable();
+    const resizeObserver = new ResizeObserver(checkScrollable);
+    resizeObserver.observe(viewport);
+    resizeObserver.observe(viewport.firstElementChild as HTMLElement);
+    return () => resizeObserver.disconnect();
+  });
 
   function toggleMode() {
     if (!el || !el.parentElement) return;
@@ -89,24 +186,21 @@
     return match ? match[0] : null;
   }
 
-  function refreshButtonSpin() {
-    refreshSpin = true;
-    setTimeout(() => {
-      refreshSpin = false;
-    }, 600);
-  }
-
   async function refresh_books() {
     books = [];
-    refreshButtonSpin();
+    loading = true;
 
-    const key = setTimeout(() => {
-      loading = true;
-    }, 50);
+    // Ensure at least one full rotation for the animation
+    const startTime = Date.now();
+    const fetchedBooks = await get_books();
+    const elapsed = Date.now() - startTime;
+    const minSpin = 1000;
 
-    books = (await get_books()).reverse();
+    if (elapsed < minSpin) {
+      await new Promise((r) => setTimeout(r, minSpin - elapsed));
+    }
 
-    clearTimeout(key);
+    books = fetchedBooks.reverse();
     loading = false;
   }
 
@@ -131,6 +225,7 @@
   async function startup() {
     local_last_accessed_book = await last_accessed_book.getValue();
     local_last_accessed_study = await last_accessed_study.getValue();
+    sidebarWidth = await sidebar_width.getValue();
   }
 
   // sync data
@@ -180,38 +275,61 @@
 </script>
 
 {#if open}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     bind:this={el}
-    class="pointer-events-none absolute inset-y-18 left-0 z-50 min-h-[90vh] w-full"
+    class="fixed inset-y-0 left-0 z-999999 flex overscroll-contain"
+    style="width: {sidebarWidth}px;"
     transition:fly={{ x: -100, duration: 400, easing: quintOut }}
   >
-    <Resizable.PaneGroup autoSaveId={"bookUILength"} direction="horizontal">
-      <Resizable.Pane class="bg-background pointer-events-auto rounded-r-lg shadow-xl">
+    <div
+      class="bg-background relative flex h-full w-full flex-col overflow-hidden border-r shadow-2xl"
+    >
+      <div class="flex h-full flex-col overflow-hidden">
         {#if isBookList || !selected_book}
-          <div class="flex items-center justify-end gap-4 p-6 pb-0">
-            <Button class="size-10 rounded-full" variant="outline" onclick={refresh_books}>
-              <RefreshIcon class={refreshSpin ? "animate-[spin_0.6s_linear_1]" : ""} />
-            </Button>
-            {#if selected_book}
+          <div
+            class="bg-secondary/30 flex shrink-0 items-center justify-between border-b px-6 py-4 backdrop-blur-md"
+          >
+            <div class="flex items-center gap-2">
+              <LibraryBigIcon class="text-primary size-5" />
+              <h2 class="text-sm font-bold tracking-tight uppercase">Library</h2>
+            </div>
+            <div class="flex items-center gap-2">
               <Button
-                class="size-10 rounded-full"
-                variant="outline"
-                onclick={() => {
-                  isBookList = false;
-                }}
+                variant="ghost"
+                size="icon"
+                class="size-8 rounded-full"
+                onclick={refresh_books}
               >
-                <CancelIcon />
+                <RefreshIcon class="size-4 {loading ? 'animate-spin' : ''}" />
               </Button>
-            {/if}
-            <Button onclick={() => (open = false)} class="size-10 rounded-full" variant="outline">
-              <ChevronsLeftIcon class="size-[1.2rem]" />
-            </Button>
+              {#if selected_book}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="size-8 rounded-full"
+                  onclick={() => {
+                    isBookList = false;
+                  }}
+                >
+                  <CancelIcon class="size-4" />
+                </Button>
+              {/if}
+              <Button
+                variant="ghost"
+                size="icon"
+                class="size-8 rounded-full"
+                onclick={() => (open = false)}
+              >
+                <ChevronsLeftIcon class="size-4" />
+              </Button>
+            </div>
           </div>
-          <ScrollArea class="h-[80vh] p-6">
-            <div class="grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-6">
+          <ScrollArea class="min-h-0 flex-1">
+            <div class="grid grid-cols-1 gap-6 p-6 sm:grid-cols-2">
               {#each books as book (book.id)}
                 <button
-                  class="appearance-none"
+                  class="group relative text-left outline-none"
                   onclick={async () => {
                     if (selected_book && selected_book.id == book.id) {
                       isBookList = false;
@@ -239,110 +357,183 @@
               {/each}
 
               {#if loading}
-                {#each Array(5) as _}
-                  <Skeleton class="rouned-lg aspect-[1/1.414] max-w-75" />
+                {#each Array(4) as _}
+                  <Skeleton class="aspect-[1/1.414] w-full rounded-lg" />
                 {/each}
               {/if}
             </div>
           </ScrollArea>
         {:else}
-          <div class="p-6">
-            <div class="mb-6 flex w-full items-center justify-between">
-              <div class="flex items-center gap-4">
-                <h2 class="max-w-60 truncate font-bold">{selected_book?.title}</h2>
+          <div
+            class="bg-secondary/30 flex shrink-0 items-center justify-between border-b px-6 py-4 backdrop-blur-md"
+          >
+            <div class="flex-1 overflow-hidden">
+              <h2 class="truncate font-serif text-lg leading-none font-bold">
+                {selected_book?.title}
+              </h2>
+              <div class="mt-1 flex items-center gap-2">
+                <span
+                  class="text-primary font-serif text-[9px] font-bold tracking-widest uppercase"
+                >
+                  {isEditing ? "Editing" : "Reading"}
+                </span>
+                <span class="bg-border h-2 w-px"></span>
+                <p class="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
+                  Page {pageInput} of {selected_book?.pages.length}
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-1">
+              <Button
+                variant={isEditing ? "default" : "ghost"}
+                size="icon"
+                class="size-8 rounded-full transition-all {isEditing
+                  ? 'bg-primary scale-110 shadow-lg'
+                  : ''}"
+                onclick={() => (isEditing = !isEditing)}
+                title={isEditing ? "Finish Editing" : "Edit Page"}
+              >
+                {#if isEditing}
+                  <CheckIcon class="size-4" />
+                {:else}
+                  <Edit3Icon class="size-4" />
+                {/if}
+              </Button>
+
+              <div class="bg-border mx-1 h-4 w-px"></div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                class="size-8 rounded-full"
+                onclick={async () => {
+                  isBookList = true;
+                  refresh_books();
+                }}
+              >
+                <LibraryBigIcon class="size-4" />
+              </Button>
+
+              <Button variant="ghost" size="icon" class="size-8 rounded-full" onclick={toggleMode}>
+                <SunIcon
+                  class="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"
+                />
+                <MoonIcon
+                  class="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0"
+                />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="size-8 rounded-full"
+                onclick={() => (open = false)}
+              >
+                <ChevronsLeftIcon class="size-4" />
+              </Button>
+            </div>
+          </div>
+
+          <ScrollArea class="min-h-0 flex-1 relative" bind:viewportRef={viewport}>
+            <div class="p-6">
+              {#key pageInput}
+                {@const capturedPage = pageInput}
+                {@const capturedBookId = selected_book?.id}
+                <Editor
+                  {onChessMove}
+                  bind:isEditing
+                  content={selected_book?.pages[capturedPage - 1]}
+                  onUpdate={debounce((contents) => {
+                    if (selected_book && selected_book.id === capturedBookId) {
+                      selected_book.pages[capturedPage - 1] = contents;
+                      update_page(selected_book.id, capturedPage, contents);
+                    }
+                  }, 100)}
+                />
+              {/key}
+              <div bind:this={scrollSentinel} class="h-px w-full"></div>
+            </div>
+
+            <!-- Bottom Glow Indicator -->
+            {#if isActivelyScrollingAtBottom}
+              <div
+                transition:fade={{ duration: 150 }}
+                class="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-primary/30 to-transparent"
+              ></div>
+            {/if}
+          </ScrollArea>
+
+          <div
+            class="bg-background flex shrink-0 items-center justify-between border-t p-4 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)]"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-9 gap-2 rounded-full px-4 font-bold"
+              disabled={pageInput <= 1}
+              onclick={() =>
+                (pageInput = clamp(pageInput - 1, 1, selected_book?.pages.length ?? 1))}
+            >
+              <ChevronLeftIcon class="size-4" />
+              Prev
+            </Button>
+            <div class="flex items-center gap-2">
+              <div class="relative flex items-center">
                 <input
                   type="number"
                   min={1}
                   max={selected_book?.pages.length}
-                  class="bg-secondary max-w-15 appearance-none rounded-sm text-center"
+                  class="bg-muted focus:bg-background focus:ring-primary w-14 rounded-full border-none py-1.5 text-center text-sm font-bold focus:ring-2 focus:outline-none"
                   bind:value={pageInput}
+                  onkeydown={(e) => {
+                    if (e.key === "Enter") {
+                      const val = parseInt((e.target as HTMLInputElement).value);
+                      pageInput = clamp(val, 1, selected_book?.pages.length ?? 1);
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
                 />
               </div>
-              <div class="flex gap-4">
-                <Button
-                  class="size-10 rounded-full"
-                  onclick={async () => {
-                    isBookList = true;
-                    refresh_books();
-                  }}
-                >
-                  <LibraryBigIcon />
-                </Button>
-
-                <Button
-                  class="size-10 rounded-full"
-                  onclick={toggleMode}
-                  variant="outline"
-                  size="icon"
-                >
-                  <SunIcon
-                    class="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all! dark:scale-0 dark:-rotate-90"
-                  />
-                  <MoonIcon
-                    class="absolute h-[1.2rem] w-[1.2rem] scale-0 rotate-90 transition-all! dark:scale-100 dark:rotate-0"
-                  />
-                  <span class="sr-only">Toggle theme</span>
-                </Button>
-                <Button
-                  onclick={() => (open = false)}
-                  class="size-10 rounded-full"
-                  variant="outline"
-                >
-                  <ChevronsLeftIcon class="size-[1.2rem]" />
-                </Button>
-              </div>
             </div>
-            {#key pageInput}
-              {@const capturedPage = pageInput}
-              {@const capturedBookId = selected_book?.id}
-              <Editor
-                {onChessMove}
-                content={selected_book?.pages[capturedPage - 1]}
-                onUpdate={debounce((contents) => {
-                  if (selected_book && selected_book.id === capturedBookId) {
-                    selected_book.pages[capturedPage - 1] = contents;
-                    update_page(selected_book.id, capturedPage, contents);
-                  }
-                }, 100)}
-              />
-            {/key}
-          </div>
-
-          <div class="mt-6 flex justify-center gap-6">
             <Button
-              class="px-4"
               variant="outline"
-              onclick={() =>
-                (pageInput = clamp(pageInput - 1, 1, selected_book?.pages.length ?? 1))}
-              ><ChevronLeftIcon />Prev</Button
-            >
-            <Button
-              class="px-4"
-              variant="outline"
+              size="sm"
+              class="h-9 gap-2 rounded-full px-4 font-bold"
+              disabled={pageInput >= (selected_book?.pages.length ?? 0)}
               onclick={() =>
                 (pageInput = clamp(pageInput + 1, 1, selected_book?.pages.length ?? 1))}
-              >Next<ChevronRightIcon /></Button
             >
+              Next
+              <ChevronRightIcon class="size-4" />
+            </Button>
           </div>
         {/if}
-      </Resizable.Pane>
+      </div>
+    </div>
 
-      <Resizable.Handle withHandle class="bg-background/10 pointer-events-auto" />
-
-      <Resizable.Pane defaultSize={70} class="pointer-events-none"></Resizable.Pane>
-    </Resizable.PaneGroup>
+    <!-- CUSTOM RESIZE HANDLE -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="group relative flex w-1 cursor-col-resize items-center justify-center transition-all hover:w-2"
+      onmousedown={startResizing}
+    >
+      <div
+        class="bg-muted-foreground/20 group-hover:bg-primary/40 absolute inset-y-0 w-px transition-all group-hover:w-full"
+      ></div>
+    </div>
   </div>
 {:else}
-  <main class="absolute top-30 left-0 text-3xl">
+  <main class="fixed top-24 left-0 z-999999" transition:fade>
     <button
-      class="rounded-r-full bg-black p-3 px-5 text-white"
+      class="bg-primary text-primary-foreground flex h-12 w-10 items-center justify-center rounded-r-xl shadow-lg transition-all hover:w-14 hover:pl-2"
       onclick={() => {
         if (!selected_book || isBookList) {
           refresh_books();
         }
         open = true;
-      }}><BookOpenTextIcon /></button
+      }}
     >
+      <BookOpenTextIcon class="size-5" />
+    </button>
   </main>
 {/if}
 

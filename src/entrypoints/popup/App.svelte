@@ -6,6 +6,8 @@
   import { type Book } from "../../utils/db";
   import { recent_book_ids, last_accessed_study } from "../../utils/storage";
   import { onMount, onDestroy } from "svelte";
+  import LibraryIcon from "@lucide/svelte/icons/library";
+  import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
 
   interface PopupBook extends Omit<Book, "coverImage"> {
     study_id?: string;
@@ -18,7 +20,6 @@
     const ids = await recent_book_ids.getValue();
     const last_accessed = await last_accessed_study.getValue();
 
-    // Fetch books without cover images for speed
     const book_promises = ids.map((id: number) => get_book(id, false));
     const results = await Promise.all(book_promises);
 
@@ -43,53 +44,64 @@
 </script>
 
 <ModeWatcher />
-<main class="bg-background min-h-80 min-w-70 p-4">
-  <div class="mb-4 flex items-center justify-between">
-    <h1 class="text-xl font-bold">Recent Books</h1>
-    <Button variant="outline" size="sm" onclick={openOptions}>Library</Button>
+<main class="bg-background w-80 p-5">
+  <div class="mb-6 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="bg-primary flex size-8 items-center justify-center rounded-lg shadow-sm">
+        <LibraryIcon class="text-primary-foreground size-4" />
+      </div>
+      <h1 class="text-sm font-bold tracking-tight uppercase">ChessBook</h1>
+    </div>
+    <Button variant="ghost" size="sm" class="text-xs font-semibold" onclick={openOptions}>
+      Library
+    </Button>
   </div>
 
-  {#if loading}
-    <div class="flex h-40 items-center justify-center">
-      <p class="animate-pulse text-sm">Loading...</p>
-    </div>
-  {:else if books.length === 0}
-    <div class="flex h-40 flex-col items-center justify-center gap-2 text-center">
-      <p class="text-muted-foreground text-sm">No recent books</p>
-      <Button variant="link" size="sm" onclick={openOptions}>Open library</Button>
-    </div>
-  {:else}
-    <div class="flex flex-col gap-2">
-      {#each books as book (book.id)}
-        <button
-          class="group hover:bg-secondary flex items-center justify-between rounded-md border p-3 text-left transition-all"
-          onclick={() => {
-            if (book.study_id) {
-              window.open("https://lichess.org" + book.study_id, "_blank");
-            } else {
-              openOptions();
-            }
-          }}
-        >
-          <div class="flex-1 overflow-hidden">
-            <h3 class="truncate text-sm font-medium">{book.title}</h3>
-          </div>
-          <div class="text-muted-foreground transition-transform group-hover:translate-x-1">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="lucide lucide-chevron-right"><path d="m9 18 6-6-6-6" /></svg
+  <div class="space-y-1.5">
+    <h2 class="text-muted-foreground mb-3 px-1 text-[10px] font-bold tracking-widest uppercase">
+      Recent Readings
+    </h2>
+
+    {#if loading}
+      <div class="space-y-2">
+        {#each Array(3) as _}
+          <div class="bg-muted h-12 w-full animate-pulse rounded-lg"></div>
+        {/each}
+      </div>
+    {:else if books.length === 0}
+      <div
+        class="flex h-32 flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-4 text-center"
+      >
+        <p class="text-muted-foreground text-xs">No recent books found</p>
+        <Button variant="outline" size="sm" class="h-8 text-xs" onclick={openOptions}>
+          Open Library
+        </Button>
+      </div>
+    {:else}
+      <div class="flex flex-col gap-2">
+        {#each books as book (book.id)}
+          <button
+            class="group hover:bg-muted/50 hover:border-border flex items-center justify-between rounded-xl border border-transparent p-3 text-left transition-all"
+            onclick={() => {
+              if (book.study_id) {
+                window.open("https://lichess.org" + book.study_id, "_blank");
+              } else {
+                openOptions();
+              }
+            }}
+          >
+            <div class="flex-1 overflow-hidden">
+              <h3 class="truncate font-serif text-sm leading-none font-bold">{book.title}</h3>
+              <p class="text-muted-foreground mt-1 text-[10px] font-medium">Continue reading</p>
+            </div>
+            <div
+              class="text-muted-foreground opacity-0 transition-all group-hover:translate-x-1 group-hover:opacity-100"
             >
-          </div>
-        </button>
-      {/each}
-    </div>
-  {/if}
+              <ChevronRightIcon class="size-4" />
+            </div>
+          </button>
+        {/each}
+      </div>
+    {/if}
+  </div>
 </main>

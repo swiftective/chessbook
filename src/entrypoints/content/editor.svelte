@@ -5,13 +5,24 @@
   import BubbleMenu from "@tiptap/extension-bubble-menu";
   import UndoIcon from "@lucide/svelte/icons/undo";
   import RedoIcon from "@lucide/svelte/icons/redo";
-  import { ScrollArea } from "$lib/components/ui/scroll-area/index";
+  import BoldIcon from "@lucide/svelte/icons/bold";
+  import ItalicIcon from "@lucide/svelte/icons/italic";
+  import ListIcon from "@lucide/svelte/icons/list";
+  import ListOrderedIcon from "@lucide/svelte/icons/list-ordered";
+  import QuoteIcon from "@lucide/svelte/icons/quote";
+  import Heading1Icon from "@lucide/svelte/icons/heading-1";
+  import Heading2Icon from "@lucide/svelte/icons/heading-2";
+  import InfoIcon from "@lucide/svelte/icons/info";
+  import TriangleAlertIcon from "@lucide/svelte/icons/triangle-alert";
+  import OctagonAlertIcon from "@lucide/svelte/icons/octagon-alert";
+  import ChessKnightIcon from "@lucide/svelte/icons/chess-knight";
 
   // --- PROPS ---
   interface Props {
     content?: string;
     onUpdate?: (content: any) => void;
     onChessMove?: (move: string) => void;
+    isEditing?: boolean;
   }
 
   let {
@@ -20,6 +31,7 @@
     onChessMove = (move) => {
       console.log("Move clicked:", move);
     },
+    isEditing = $bindable(false),
   }: Props = $props();
 
   function wrapLinesInParagraphs(text: string) {
@@ -41,7 +53,6 @@
   let element = $state<HTMLElement>();
   let bubbleMenuElement = $state<HTMLElement>();
   let editor = $state.raw<Editor | undefined>();
-  let isEditing = $state(false);
   let updateTick = $state(0);
 
   const checkActive = (name: string, attrs?: any) => {
@@ -142,9 +153,9 @@
     renderHTML({ node, HTMLAttributes }) {
       const type = node.attrs.type;
       const typeClasses: any = {
-        red: "bg-destructive/10 border-destructive text-destructive",
-        yellow: "bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-400",
-        green: "bg-primary/10 border-primary text-primary",
+        red: "bg-destructive/5 border-destructive text-destructive",
+        yellow: "bg-yellow-500/5 border-yellow-500 text-yellow-700 dark:text-yellow-400",
+        green: "bg-primary/5 border-primary text-primary",
       };
       return [
         "div",
@@ -319,191 +330,124 @@
   });
 </script>
 
-<div class="relative flex w-full flex-col gap-4">
-  <div class="flex justify-end">
-    <button
-      onclick={() => {
-        isEditing = !isEditing;
-      }}
-      class="rounded-md border px-4 py-2 text-xs font-medium tracking-wider uppercase shadow-sm transition-colors
-      {isEditing
-        ? 'bg-primary text-primary-foreground'
-        : 'bg-background text-muted-foreground hover:bg-muted'}"
-    >
-      {isEditing ? "Done Editing" : "Edit"}
-    </button>
-  </div>
-
+<div class="relative flex w-full flex-col">
   <!-- BUBBLE MENU -->
   <div
     bind:this={bubbleMenuElement}
     class="bubble-menu {isSelectionEmpty()
       ? 'hidden'
-      : ''} border-border bg-popover text-popover-foreground flex items-center gap-1 rounded-md border p-1 shadow-md"
+      : ''} glass border-border flex items-center gap-1 rounded-full p-1 shadow-xl"
   >
     {#if editor}
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleBold().run())}
-        class="btn-bubble {checkActive('bold') ? 'is-active' : ''}">B</button
+        class="btn-bubble {checkActive('bold') ? 'is-active' : ''}"
+        ><BoldIcon class="size-3.5" /></button
       >
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleItalic().run())}
-        class="btn-bubble italic {checkActive('italic') ? 'is-active' : ''}">I</button
+        class="btn-bubble {checkActive('italic') ? 'is-active' : ''}"
+        ><ItalicIcon class="size-3.5" /></button
       >
-      <button
-        onclick={() => runAction(() => editor?.chain().focus().toggleUnderline().run())}
-        class="btn-bubble underline {checkActive('underline') ? 'is-active' : ''}">U</button
-      >
-      <button
-        onclick={() => runAction(() => editor?.chain().focus().toggleStrike().run())}
-        class="btn-bubble line-through {checkActive('strike') ? 'is-active' : ''}">S</button
-      >
-      <div class="divider mx-1 h-4"></div>
+      <div class="divider mx-0.5 h-3"></div>
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleHeading({ level: 1 }).run())}
-        class="btn-bubble {checkActive('heading', { level: 1 }) ? 'is-active' : ''}">H1</button
+        class="btn-bubble {checkActive('heading', { level: 1 }) ? 'is-active' : ''}"
+        ><Heading1Icon class="size-3.5" /></button
       >
-      <div class="divider mx-1 h-4"></div>
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleHeading({ level: 2 }).run())}
-        class="btn-bubble {checkActive('heading', { level: 2 }) ? 'is-active' : ''}">H2</button
+        class="btn-bubble {checkActive('heading', { level: 2 }) ? 'is-active' : ''}"
+        ><Heading2Icon class="size-3.5" /></button
       >
-      <div class="divider mx-1 h-4"></div>
-      <button
-        onclick={() => runAction(() => editor?.chain().focus().toggleHeading({ level: 3 }).run())}
-        class="btn-bubble {checkActive('heading', { level: 3 }) ? 'is-active' : ''}">H3</button
-      >
-      <div class="divider mx-1 h-4"></div>
+      <div class="divider mx-0.5 h-3"></div>
       <button
         onclick={() => runAction(() => editor?.chain().focus().toggleMark("chessMove").run())}
         class="btn-bubble {checkActive('chessMove') ? 'is-active' : ''}"
       >
-        <span class="font-mono text-[10px] font-bold">Move</span>
+        <ChessKnightIcon class="size-3.5" />
       </button>
     {/if}
   </div>
 
   <!-- EDITOR SHELL -->
-  <div
-    class="editor-shell bg-background flex w-full flex-col overflow-hidden rounded-xl border shadow-sm"
-  >
+  <div class="editor-shell bg-background/50 relative flex w-full flex-col">
     {#if editor && isEditing}
       <div
-        class="bg-muted/30 sticky top-0 z-10 flex flex-wrap items-center gap-1 border-b p-2 backdrop-blur-sm"
+        class="glass sticky top-0 z-20 mb-4 flex flex-wrap items-center gap-1 rounded-lg border p-1.5 shadow-lg backdrop-blur-md"
       >
         <button
           onclick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-          class="btn-tool {checkActive('heading', { level: 1 }) ? 'is-active' : ''}">H1</button
+          class="btn-tool {checkActive('heading', { level: 1 }) ? 'is-active' : ''}"
+          ><Heading1Icon class="size-4" /></button
         >
         <button
           onclick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-          class="btn-tool {checkActive('heading', { level: 2 }) ? 'is-active' : ''}">H2</button
-        >
-        <button
-          onclick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
-          class="btn-tool {checkActive('heading', { level: 3 }) ? 'is-active' : ''}">H3</button
+          class="btn-tool {checkActive('heading', { level: 2 }) ? 'is-active' : ''}"
+          ><Heading2Icon class="size-4" /></button
         >
         <div class="divider"></div>
         <button
           onclick={() => editor?.chain().focus().toggleBold().run()}
-          class="btn-tool font-bold {checkActive('bold') ? 'is-active' : ''}">B</button
+          class="btn-tool {checkActive('bold') ? 'is-active' : ''}"
+          ><BoldIcon class="size-4" /></button
         >
         <button
           onclick={() => editor?.chain().focus().toggleItalic().run()}
-          class="btn-tool italic {checkActive('italic') ? 'is-active' : ''}">I</button
-        >
-        <button
-          onclick={() => editor?.chain().focus().toggleStrike().run()}
-          class="btn-tool line-through {checkActive('strike') ? 'is-active' : ''}">S</button
+          class="btn-tool {checkActive('italic') ? 'is-active' : ''}"
+          ><ItalicIcon class="size-4" /></button
         >
         <div class="divider"></div>
         <button
-          title="toggle bulletlist"
+          title="Bullet List"
           onclick={() => editor?.chain().focus().toggleBulletList().run()}
           class="btn-tool {checkActive('bulletList') ? 'is-active' : ''}"
+          ><ListIcon class="size-4" /></button
         >
-          <svg
-            class="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            ><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"
-            ></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"
-            ></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line
-              x1="3"
-              y1="18"
-              x2="3.01"
-              y2="18"
-            ></line></svg
-          >
-        </button>
         <button
-          title="toggle orderedList"
+          title="Ordered List"
           onclick={() => editor?.chain().focus().toggleOrderedList().run()}
           class="btn-tool {checkActive('orderedList') ? 'is-active' : ''}"
+          ><ListOrderedIcon class="size-4" /></button
         >
-          <svg
-            class="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            ><line x1="10" y1="6" x2="21" y2="6"></line><line x1="10" y1="12" x2="21" y2="12"
-            ></line><line x1="10" y1="18" x2="21" y2="18"></line><path d="M4 6h1v4"></path><path
-              d="M4 10h2"
-            ></path><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"></path></svg
-          >
-        </button>
         <button
-          title="toggle blockquote"
+          title="Blockquote"
           onclick={() => editor?.chain().focus().toggleBlockquote().run()}
           class="btn-tool {checkActive('blockquote') ? 'is-active' : ''}"
+          ><QuoteIcon class="size-4" /></button
         >
-          <svg
-            class="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            ><path
-              d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"
-            ></path><path
-              d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"
-            ></path></svg
-          >
-        </button>
         <div class="divider"></div>
         <button
+          title="Green Callout"
           onclick={() => editor?.chain().focus().toggleWrap("callout", { type: "green" }).run()}
-          class="btn-tool font-bold text-emerald-600">Grn</button
+          class="btn-tool text-emerald-600"><InfoIcon class="size-4" /></button
         >
         <button
+          title="Yellow Callout"
           onclick={() => editor?.chain().focus().toggleWrap("callout", { type: "yellow" }).run()}
-          class="btn-tool font-bold text-amber-600">Yel</button
+          class="btn-tool text-amber-600"><TriangleAlertIcon class="size-4" /></button
         >
         <button
+          title="Red Callout"
           onclick={() => editor?.chain().focus().toggleWrap("callout", { type: "red" }).run()}
-          class="btn-tool text-destructive font-bold">Red</button
+          class="btn-tool text-destructive"><OctagonAlertIcon class="size-4" /></button
         >
-        <div class="divider"></div>
+        <div class="divider ml-auto"></div>
         <button onclick={() => editor?.chain().focus().undo().run()} class="btn-tool"
-          ><UndoIcon class="h-4" /></button
+          ><UndoIcon class="size-4" /></button
         >
         <button onclick={() => editor?.chain().focus().redo().run()} class="btn-tool"
-          ><RedoIcon class="h-4" /></button
+          ><RedoIcon class="size-4" /></button
         >
       </div>
     {/if}
 
-    <ScrollArea class="h-[60vh]">
-      <div
-        bind:this={element}
-        class="tiptap-root prose prose-sm max-w-none px-4 py-8 focus:outline-none {isEditing
-          ? ''
-          : 'cursor-default'}"
-      ></div>
-    </ScrollArea>
+    <div
+      bind:this={element}
+      class="tiptap-root prose prose-neutral dark:prose-invert max-w-none font-serif focus:outline-none {isEditing
+        ? 'min-h-[40vh]'
+        : 'cursor-default'}"
+    ></div>
   </div>
 </div>
 
@@ -516,59 +460,57 @@
 
   /* --- TYPOGRAPHY --- */
   :global(.tiptap h1) {
-    @apply mt-6 mb-4 text-2xl leading-tight font-bold;
+    @apply mt-8 mb-4 font-serif text-3xl leading-tight font-bold tracking-tight;
   }
   :global(.tiptap h2) {
-    @apply mt-5 mb-3 text-xl leading-snug font-semibold;
+    @apply mt-6 mb-3 font-serif text-2xl leading-snug font-semibold tracking-tight;
   }
   :global(.tiptap h3) {
-    @apply mt-4 mb-2 text-lg font-semibold;
+    @apply mt-4 mb-2 font-serif text-xl font-semibold;
   }
   :global(.tiptap ul) {
-    @apply mb-4 ml-5 list-disc space-y-1;
+    @apply mb-4 ml-6 list-disc space-y-2;
   }
   :global(.tiptap ol) {
-    @apply mb-4 ml-5 list-decimal space-y-1;
+    @apply mb-4 ml-6 list-decimal space-y-2;
   }
   :global(.tiptap blockquote) {
-    @apply border-muted-foreground/30 text-muted-foreground my-4 border-l-4 py-1 pl-4 italic;
+    @apply border-primary/20 bg-primary/5 my-6 rounded-r-lg border-l-4 py-4 pr-4 pl-6 italic;
   }
   :global(.tiptap p) {
-    @apply mb-3 leading-relaxed;
+    @apply mb-4 text-lg leading-relaxed;
   }
 
   /* --- CHESS NOTATION --- */
   :global(.chess-move-text) {
-    @apply bg-secondary text-secondary-foreground m-0.5 my-1 rounded px-1 font-mono font-bold transition-all duration-200;
-    white-space: nowrap;
-    display: inline-block;
+    @apply bg-muted/50 text-foreground mx-0.5 inline-block cursor-pointer rounded-sm border border-transparent px-1.5 py-0.5 font-mono text-[0.9em] font-bold transition-all duration-200;
   }
   :global(.tiptap-root:not([contenteditable="true"]) .chess-move-text:hover) {
-    @apply bg-primary/20;
+    @apply bg-primary/10 border-primary/30;
   }
   :global(.active-chess-move) {
-    @apply border-orange-600 bg-orange-500 text-white;
+    @apply bg-primary text-primary-foreground border-primary shadow-sm;
   }
 
   /* --- COMPONENTS --- */
   :global(.callout-box) {
-    @apply my-4 rounded-r-lg border-l-4 p-4 shadow-sm;
+    @apply my-6 rounded-lg border p-5 shadow-sm;
   }
 
   /* --- BUTTONS --- */
   .btn-tool {
-    @apply text-foreground/80 hover:bg-muted flex h-8 w-8 items-center justify-center rounded border border-transparent text-xs font-medium transition-all;
+    @apply text-muted-foreground hover:bg-muted hover:text-foreground flex h-9 w-9 items-center justify-center rounded-md border border-transparent transition-all;
   }
   .btn-tool.is-active {
     @apply bg-primary text-primary-foreground shadow-sm;
   }
   .btn-bubble {
-    @apply text-popover-foreground hover:bg-muted/80 flex h-7 w-7 items-center justify-center rounded text-xs font-bold transition-all;
+    @apply text-foreground/80 hover:bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all;
   }
   .btn-bubble.is-active {
-    @apply bg-primary/20 text-primary;
+    @apply bg-primary text-primary-foreground;
   }
   .divider {
-    @apply bg-border mx-1 h-5 w-px self-center;
+    @apply bg-border mx-1.5 h-5 w-px self-center opacity-50;
   }
 </style>

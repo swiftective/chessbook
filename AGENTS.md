@@ -9,7 +9,7 @@ This document provides essential information for AI agents operating in the Ches
 - **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
 - **Database:** [Dexie.js](https://dexie.org/) (IndexedDB wrapper)
 - **Icons:** [Lucide Svelte](https://lucide.dev/guide/svelte)
-- **UI Components:** [Bits UI](https://bits-ui.com/), [Paneforge](https://paneforge.com/)
+- **UI Components:** [Bits UI](https://bits-ui.com/)
 
 ## 🚀 Commands
 
