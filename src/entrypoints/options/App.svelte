@@ -182,6 +182,7 @@
             <BookCard
               {...book}
               onDelete={async () => {
+                if (!confirm(`Are you sure you want to delete "${book.title}"?`)) return;
                 await delete_book(book.id);
                 books = await get_books();
               }}
