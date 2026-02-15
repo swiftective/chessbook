@@ -3,7 +3,7 @@ import { Dexie, EntityTable } from "dexie";
 interface Book {
   id: number;
   title: string;
-  coverImage: Uint8Array;
+  coverImage?: Uint8Array;
   pages: string[];
 }
 

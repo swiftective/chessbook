@@ -9,7 +9,7 @@ export default defineConfig({
     permissions: ["storage"],
     web_accessible_resources: [
       {
-        resources: ["/move-event.js"],
+        resources: ["/move-event.js", "/icon/128.png"],
         matches: ["https://lichess.org/*"],
       },
     ],

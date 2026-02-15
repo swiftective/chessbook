@@ -19,7 +19,7 @@
   interface Book {
     id: number;
     title: string;
-    coverImage: Uint8Array;
+    coverImage?: Uint8Array;
     pages: string[];
   }
 
@@ -49,10 +49,14 @@
     reader.onload = async (e: any) => {
       try {
         const json = JSON.parse(e.target.result);
-        const blob = await rawbase64_to_blob(json.image_base64);
-        const image = await blob_to_uint8array(blob);
+        let image: Uint8Array | undefined;
 
-        add_book({
+        if (json.image_base64) {
+          const blob = await rawbase64_to_blob(json.image_base64);
+          image = await blob_to_uint8array(blob);
+        }
+
+        await add_book({
           title: json.title,
           pages: json.pages,
           coverImage: image,
@@ -64,6 +68,18 @@
       }
     };
     reader.readAsText(selectedFile);
+  }
+
+  async function createNewBook() {
+    const title = prompt("Enter book title:");
+    if (!title) return;
+
+    await add_book({
+      title,
+      pages: [""],
+    });
+
+    books = await get_books();
   }
 
   async function startup() {
@@ -108,10 +124,18 @@
         <Button
           variant="outline"
           class="hover:bg-primary hover:text-primary-foreground gap-2 rounded-full border-2 px-6 font-bold transition-all"
+          onclick={createNewBook}
+        >
+          <PlusIcon class="size-4" />
+          Create New Book
+        </Button>
+        <Button
+          variant="outline"
+          class="hover:bg-primary hover:text-primary-foreground gap-2 rounded-full border-2 px-6 font-bold transition-all"
           onclick={() => fileInput?.click()}
         >
           <PlusIcon class="size-4" />
-          Import Collection
+          Import Book
         </Button>
         <input class="hidden" type="file" onchange={handleFileChange} bind:this={fileInput} />
 
@@ -163,14 +187,6 @@
               }}
             />
           </button>
-          <div class="px-1">
-            <h3 class="truncate font-serif text-base leading-none font-bold">{book.title}</h3>
-            <p
-              class="text-muted-foreground mt-2 text-[10px] font-bold tracking-widest uppercase opacity-70"
-            >
-              Study Collection
-            </p>
-          </div>
         </div>
       {/each}
 

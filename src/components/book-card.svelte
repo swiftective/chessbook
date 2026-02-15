@@ -1,13 +1,15 @@
 <script lang="ts">
   import * as ContextMenu from "$lib/components/ui/context-menu/index";
+  import { browser } from "#imports";
   import TrashIcon from "@lucide/svelte/icons/trash-2";
   import ArrowDownToLineIcon from "@lucide/svelte/icons/arrow-down-to-line";
   import { onDestroy } from "svelte";
   import { get_book } from "../utils/crud";
+  const LogoImg = browser.runtime.getURL("/icon/128.png");
 
   interface Props {
     title: string;
-    coverImage: any;
+    coverImage?: any;
     id: number;
     onDelete?: () => void;
   }
@@ -15,7 +17,7 @@
   let { title, coverImage, id, onDelete }: Props = $props();
 
   // svelte-ignore state_referenced_locally
-  const coverImageUrl = getUrl(coverImage);
+  const coverImageUrl = coverImage ? getUrl(coverImage) : null;
 
   async function uint8array_to_rawbase64(rawImage: any): Promise<string> {
     const uint8Array = new Uint8Array(Object.values(rawImage));
@@ -35,13 +37,16 @@
   async function download_book() {
     try {
       const book = await get_book(id, true);
-      const image_base64 = await uint8array_to_rawbase64(book.coverImage);
+      const image_base64 = book.coverImage ? await uint8array_to_rawbase64(book.coverImage) : null;
 
-      const data = {
+      const data: any = {
         title: book.title,
         pages: book.pages,
-        image_base64: image_base64,
       };
+
+      if (image_base64) {
+        data.image_base64 = image_base64;
+      }
 
       const jsonString = JSON.stringify(data);
       const blob = new Blob([jsonString], { type: "application/json" });
@@ -67,7 +72,9 @@
   }
 
   onDestroy(() => {
-    URL.revokeObjectURL(coverImageUrl);
+    if (coverImageUrl) {
+      URL.revokeObjectURL(coverImageUrl);
+    }
   });
 </script>
 
@@ -76,12 +83,31 @@
     disabled={onDelete == undefined ? true : false}
     class="book-shadow group relative aspect-[1/1.414] w-full overflow-hidden rounded-md border border-white/5 transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl"
   >
-    <img
-      src={coverImageUrl}
-      alt={`Cover of ${title}`}
-      class="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-      loading="lazy"
-    />
+    <!-- Logo Background (Always present) -->
+    <div class="bg-muted/20 absolute inset-0 flex items-center justify-center">
+      <img
+        alt=""
+        src={LogoImg}
+        class="absolute inset-0 size-full scale-150 object-cover opacity-20 blur-xl"
+        aria-hidden="true"
+      />
+      {#if !coverImageUrl}
+        <img
+          alt="chessbook"
+          src={LogoImg}
+          class="relative z-10 size-20 object-contain opacity-40 transition-transform duration-700 group-hover:scale-110"
+        />
+      {/if}
+    </div>
+
+    {#if coverImageUrl}
+      <img
+        src={coverImageUrl}
+        alt={`Cover of ${title}`}
+        class="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+        loading="lazy"
+      />
+    {/if}
 
     <div
       class="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent opacity-60 transition-opacity duration-500 group-hover:opacity-80"
