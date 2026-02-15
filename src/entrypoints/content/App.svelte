@@ -1,5 +1,6 @@
 <script lang="ts">
-  import Editor from "./editor.svelte";
+  import SinglePageMode from "./SinglePageMode.svelte";
+  import ContinuousPageMode from "./ContinuousPageMode.svelte";
 
   import { fly, fade } from "svelte/transition";
   import { flip } from "svelte/animate";
@@ -23,6 +24,8 @@
   import RefreshIcon from "@lucide/svelte/icons/rotate-ccw";
   import Edit3Icon from "@lucide/svelte/icons/edit-3";
   import CheckIcon from "@lucide/svelte/icons/check";
+  import FileTextIcon from "@lucide/svelte/icons/file-text";
+  import ColumnsIcon from "@lucide/svelte/icons/gallery-vertical";
 
   import { type Book } from "../../utils/db";
   import {
@@ -31,6 +34,7 @@
     last_accessed_study,
     last_accessed_book,
     sidebar_width,
+    view_mode,
   } from "../../utils/storage";
 
   import { Button } from "$lib/components/ui/button/index";
@@ -43,6 +47,9 @@
   let sidebarWidth = $state(400);
   let isResizing = $state(false);
   let el = $state<HTMLElement | null>(null);
+
+  // View mode state: 'single' or 'continuous'
+  let viewMode = $state<"single" | "continuous">("single");
 
   function startResizing(e: MouseEvent) {
     isResizing = true;
@@ -106,69 +113,6 @@
   let isBookList = $state(false);
   let loading = $state(false);
 
-  let reachedBottom = $state(false);
-  let scrollSentinel = $state<HTMLElement | null>(null);
-  let isScrollable = $state(false);
-  let viewport = $state<HTMLElement | null>(null);
-  let isActivelyScrollingAtBottom = $state(false);
-  let scrollStopTimer: ReturnType<typeof setTimeout>;
-
-  $effect(() => {
-    if (!scrollSentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        reachedBottom = entry.isIntersecting;
-      },
-      { threshold: 0.1 },
-    );
-    observer.observe(scrollSentinel);
-    return () => observer.disconnect();
-  });
-
-  function handleActiveScroll(e: WheelEvent | TouchEvent) {
-    if (!reachedBottom || !isScrollable) return;
-
-    // Check if scrolling down
-    let isScrollingDown = false;
-    if (e instanceof WheelEvent) {
-      isScrollingDown = e.deltaY > 0;
-    } else if (e instanceof TouchEvent) {
-      // Simplistic touch check (could be improved with touchstart tracking)
-      isScrollingDown = true; 
-    }
-
-    if (isScrollingDown) {
-      isActivelyScrollingAtBottom = true;
-      clearTimeout(scrollStopTimer);
-      scrollStopTimer = setTimeout(() => {
-        isActivelyScrollingAtBottom = false;
-      }, 150); // Hide quickly after scroll stops
-    }
-  }
-
-  $effect(() => {
-    if (!viewport) return;
-    viewport.addEventListener("wheel", handleActiveScroll, { passive: true });
-    viewport.addEventListener("touchmove", handleActiveScroll, { passive: true });
-    return () => {
-      viewport?.removeEventListener("wheel", handleActiveScroll);
-      viewport?.removeEventListener("touchmove", handleActiveScroll);
-    };
-  });
-
-  $effect(() => {
-    if (!viewport) return;
-    const checkScrollable = () => {
-      isScrollable = viewport!.scrollHeight > viewport!.clientHeight + 10;
-    };
-    checkScrollable();
-    const resizeObserver = new ResizeObserver(checkScrollable);
-    resizeObserver.observe(viewport);
-    resizeObserver.observe(viewport.firstElementChild as HTMLElement);
-    return () => resizeObserver.disconnect();
-  });
-
   function toggleMode() {
     if (!el || !el.parentElement) return;
     if (theme == "dark") {
@@ -222,10 +166,16 @@
     } catch (_) {}
   }
 
+  function setViewMode(mode: typeof viewMode) {
+    viewMode = mode;
+    view_mode.setValue(mode);
+  }
+
   async function startup() {
     local_last_accessed_book = await last_accessed_book.getValue();
     local_last_accessed_study = await last_accessed_study.getValue();
     sidebarWidth = await sidebar_width.getValue();
+    viewMode = await view_mode.getValue();
   }
 
   // sync data
@@ -414,6 +364,22 @@
                 <LibraryBigIcon class="size-4" />
               </Button>
 
+              <Button
+                variant="ghost"
+                size="icon"
+                class="size-8 rounded-full"
+                onclick={() => setViewMode(viewMode === "single" ? "continuous" : "single")}
+                title={viewMode === "single"
+                  ? "Switch to Continuous Mode"
+                  : "Switch to Single Page Mode"}
+              >
+                {#if viewMode === "single"}
+                  <ColumnsIcon class="size-4" />
+                {:else}
+                  <FileTextIcon class="size-4" />
+                {/if}
+              </Button>
+
               <Button variant="ghost" size="icon" class="size-8 rounded-full" onclick={toggleMode}>
                 <SunIcon
                   class="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"
@@ -433,37 +399,44 @@
             </div>
           </div>
 
-          <ScrollArea class="min-h-0 flex-1 relative" bind:viewportRef={viewport}>
-            <div class="p-6">
-              {#key pageInput}
-                {@const capturedPage = clamp(pageInput, 1, selected_book?.pages.length ?? 1)}
-                {@const capturedBookId = selected_book?.id}
-                <Editor
-                  {onChessMove}
-                  bind:isEditing
-                  content={selected_book?.pages[capturedPage - 1]}
-                  onUpdate={debounce((contents) => {
-                    if (selected_book && selected_book.id === capturedBookId) {
-                      const finalIndex = capturedPage - 1;
-                      if (finalIndex >= 0 && finalIndex < selected_book.pages.length) {
-                        selected_book.pages[finalIndex] = contents;
-                        update_page(selected_book.id, capturedPage, contents);
-                      }
-                    }
-                  }, 100)}
-                />
-              {/key}
-              <div bind:this={scrollSentinel} class="h-px w-full"></div>
-            </div>
-
-            <!-- Bottom Glow Indicator -->
-            {#if isActivelyScrollingAtBottom}
-              <div
-                transition:fade={{ duration: 150 }}
-                class="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-primary/30 to-transparent"
-              ></div>
-            {/if}
-          </ScrollArea>
+          {#if viewMode === "single"}
+            <SinglePageMode
+              pageContent={selected_book?.pages[pageInput - 1] || ""}
+              pageNumber={pageInput}
+              totalPages={selected_book?.pages.length ?? 0}
+              bookId={selected_book?.id}
+              {isEditing}
+              {onChessMove}
+              onPageUpdate={(contents) => {
+                if (selected_book) {
+                  const finalIndex = pageInput - 1;
+                  if (finalIndex >= 0 && finalIndex < selected_book.pages.length) {
+                    selected_book.pages[finalIndex] = contents;
+                    update_page(selected_book.id, pageInput, contents);
+                  }
+                }
+              }}
+            />
+          {:else}
+            <ContinuousPageMode
+              pages={selected_book?.pages || []}
+              currentPage={pageInput}
+              bookId={selected_book?.id}
+              {isEditing}
+              {onChessMove}
+              onPageUpdate={(pageIndex, contents) => {
+                if (selected_book) {
+                  if (pageIndex >= 0 && pageIndex < selected_book.pages.length) {
+                    selected_book.pages[pageIndex] = contents;
+                    update_page(selected_book.id, pageIndex + 1, contents);
+                  }
+                }
+              }}
+              onPageChange={(page) => {
+                pageInput = clamp(page, 1, selected_book?.pages.length ?? 1);
+              }}
+            />
+          {/if}
 
           <div
             class="bg-background flex shrink-0 items-center justify-between border-t p-4 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)]"

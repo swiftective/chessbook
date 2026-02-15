@@ -31,3 +31,7 @@ export const recent_book_ids = storage.defineItem<number[]>("local:recent-book-i
 export const sidebar_width = storage.defineItem<number>("local:sidebar-width", {
   fallback: 400,
 });
+
+export const view_mode = storage.defineItem<"single" | "continuous">("local:view-mode", {
+  fallback: "single",
+});
