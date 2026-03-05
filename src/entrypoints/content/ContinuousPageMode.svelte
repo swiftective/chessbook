@@ -29,6 +29,11 @@
   let lastScrolledToPage = $state<number | null>(null);
   let isInitialLoad = $state(true);
 
+  // Store measured heights for accurate spacer calculation separately for each mode
+  let pageHeightsReading = $state<Map<number, number>>(new Map());
+  let pageHeightsEditing = $state<Map<number, number>>(new Map());
+  let activePageHeights = $derived(isEditing ? pageHeightsEditing : pageHeightsReading);
+
   // Calculate which pages should be rendered
   let renderedPageIndices = $derived.by(() => {
     const visibleArray = Array.from(visiblePages);
@@ -58,6 +63,31 @@
     }
 
     return Array.from({ length: end - start }, (_, i) => start + i);
+  });
+
+  // Lock scroll position to current page when editing mode is toggled
+  let prevIsEditing = $derived(isEditing);
+  $effect(() => {
+    if (isEditing !== prevIsEditing) {
+      prevIsEditing = isEditing;
+      const targetIndex = currentPage - 1;
+      const element = pageElements.get(targetIndex);
+
+      if (element) {
+        isProgrammaticScroll = true;
+        // Wait for next tick so DOM updates new heights and spacers
+        setTimeout(() => {
+          element.scrollIntoView({
+            behavior: "auto",
+            block: "start",
+          });
+          // Reset after short delay
+          setTimeout(() => {
+            isProgrammaticScroll = false;
+          }, 100);
+        }, 0);
+      }
+    }
   });
 
   // Handle scrolling to current page when it changes from outside
@@ -98,8 +128,6 @@
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (isProgrammaticScroll) return;
-
         let changed = false;
         entries.forEach((entry) => {
           const pageIndex = parseInt(entry.target.getAttribute("data-page-index") || "-1");
@@ -122,7 +150,7 @@
           visiblePages = new Set(visiblePages); // Trigger reactivity
 
           // Determine current page from visible pages
-          if (visiblePages.size > 0) {
+          if (visiblePages.size > 0 && !isProgrammaticScroll) {
             const visibleArray = Array.from(visiblePages).sort((a, b) => a - b);
             // Use the first visible page as current (top-most)
             const newPage = visibleArray[0] + 1;
@@ -158,20 +186,59 @@
     pageElements.set(index, node);
     pageElements = new Map(pageElements);
 
+    let currentEditingState = isEditing;
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // Fast-path height measurement without layout thrashing
+        const height = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+        // Check if editing state changed during the measurement frame
+        const isNowEditing = isEditing;
+        if (isNowEditing) {
+          pageHeightsEditing.set(index, height);
+          pageHeightsEditing = new Map(pageHeightsEditing);
+        } else {
+          pageHeightsReading.set(index, height);
+          pageHeightsReading = new Map(pageHeightsReading);
+        }
+      }
+    });
+    resizeObserver.observe(node);
+
     return {
       destroy() {
         pageElements.delete(index);
         pageElements = new Map(pageElements);
+        resizeObserver.disconnect();
       },
     };
   }
+  // Calculate top and bottom spacer heights based on active measurements
+  let topSpacerHeight = $derived.by(() => {
+    if (renderedPageIndices.length === 0 || renderedPageIndices[0] === 0) return 0;
+    let height = 0;
+    for (let i = 0; i < renderedPageIndices[0]; i++) {
+      height += activePageHeights.get(i) || ESTIMATED_PAGE_HEIGHT;
+    }
+    return height;
+  });
+
+  let bottomSpacerHeight = $derived.by(() => {
+    if (renderedPageIndices.length === 0) return 0;
+    const lastRendered = renderedPageIndices[renderedPageIndices.length - 1];
+    if (lastRendered >= pages.length - 1) return 0;
+    let height = 0;
+    for (let i = lastRendered + 1; i < pages.length; i++) {
+      height += activePageHeights.get(i) || ESTIMATED_PAGE_HEIGHT;
+    }
+    return height;
+  });
 </script>
 
 <ScrollArea class="min-h-0 flex-1" bind:viewportRef={viewport}>
   <div bind:this={containerRef} class="flex flex-col">
     <!-- Spacer for pages not yet rendered (top) -->
-    {#if renderedPageIndices.length > 0 && renderedPageIndices[0] > 0}
-      <div style="height: {renderedPageIndices[0] * ESTIMATED_PAGE_HEIGHT}px"></div>
+    {#if topSpacerHeight > 0}
+      <div style="height: {topSpacerHeight}px"></div>
     {/if}
 
     {#each renderedPageIndices as pageIndex (pageIndex)}
@@ -197,16 +264,13 @@
     {/each}
 
     <!-- Spacer for pages not yet rendered (bottom) -->
-    {#if renderedPageIndices.length > 0}
-      {@const lastRendered = renderedPageIndices[renderedPageIndices.length - 1]}
-      {#if lastRendered < pages.length - 1}
-        <div
-          style="height: {(pages.length - 1 - lastRendered) * ESTIMATED_PAGE_HEIGHT}px"
-          class="bg-muted/30 text-muted-foreground flex items-center justify-center text-sm"
-        >
-          <span>More pages below...</span>
-        </div>
-      {/if}
+    {#if bottomSpacerHeight > 0}
+      <div
+        style="height: {bottomSpacerHeight}px"
+        class="bg-muted/30 text-muted-foreground flex items-center justify-center text-sm"
+      >
+        <span>More pages below...</span>
+      </div>
     {/if}
   </div>
 </ScrollArea>

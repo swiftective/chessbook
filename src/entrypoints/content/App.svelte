@@ -151,7 +151,15 @@
   function onChessMove(bookMove: string) {
     try {
       const fen_el = document.querySelector("[data-fen]");
-      const fen = fen_el?.getAttribute("data-fen");
+
+      if (fen_el == undefined) {
+        alert(
+          "To use this feature, please enable 'Engine Moves' on Lichess. You can find the button (marked with an 'x') directly above the move list/analysis tree.",
+        );
+        return;
+      }
+
+      const fen = fen_el.getAttribute("data-fen");
       if (!fen) return;
       const chess = new Chess(fen);
       const notation = firstChessNotation(bookMove);
