@@ -4,8 +4,17 @@ import path from "path";
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
+  manifestVersion: 3,
 
-  manifest: {
+  manifest: ({ browser }) => ({
+    // Conditionally include gecko settings only for Firefox
+    ...(browser === "firefox" && {
+      browser_specific_settings: {
+        gecko: {
+          id: "chessbook@swiftective.github.io",
+        },
+      },
+    }),
     permissions: ["storage"],
     web_accessible_resources: [
       {
@@ -13,8 +22,7 @@ export default defineConfig({
         matches: ["https://lichess.org/*"],
       },
     ],
-  },
-
+  }),
 
   imports: false,
   srcDir: "src",

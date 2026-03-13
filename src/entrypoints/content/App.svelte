@@ -189,8 +189,8 @@
   // sync data
   const interval_key = setInterval(() => {
     if (selected_book && open) {
-      last_accessed_study.setValue(local_last_accessed_study);
-      last_accessed_book.setValue(local_last_accessed_book);
+      last_accessed_study.setValue($state.snapshot(local_last_accessed_study));
+      last_accessed_book.setValue($state.snapshot(local_last_accessed_book));
     }
   }, 3000);
 

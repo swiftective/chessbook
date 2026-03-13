@@ -5,7 +5,11 @@ import "../../assets/index.css";
 import { createShadowRootUi, defineContentScript, injectScript } from "#imports";
 
 export default defineContentScript({
-  matches: ["https://lichess.org/analysis/*", "https://lichess.org/study/*"], // Be specific for security
+  matches: [
+    "https://lichess.org/analysis/*",
+    "https://lichess.org/study/*",
+    "https://lichess.org/analysis",
+  ], // Be specific for security
   // 2. Set cssInjectionMode
   cssInjectionMode: "ui",
 
