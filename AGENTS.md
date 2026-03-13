@@ -2,9 +2,9 @@
 
 ```sh
 # command to check for errors
-pnpm run check
+bun run check
 
 # command to format code
-pnpm run format
+bun run format
 
 ```
