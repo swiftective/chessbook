@@ -12,6 +12,9 @@ export default defineConfig({
       browser_specific_settings: {
         gecko: {
           id: "chessbook@swiftective.github.io",
+          data_collection_permissions: {
+            required: ["none"],
+          },
         },
       },
     }),
