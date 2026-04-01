@@ -2,7 +2,7 @@
   "name": "chessbook",
   "description": "Read, study, and explore chess ebooks directly in your browser with lichess.org",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "wxt -b brave",
