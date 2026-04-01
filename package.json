@@ -1,6 +1,6 @@
 {
   "name": "chessbook",
-  "description": "manifest.json description",
+  "description": "Read, study, and explore chess ebooks directly in your browser with lichess.org",
   "private": true,
   "version": "0.0.0",
   "type": "module",
